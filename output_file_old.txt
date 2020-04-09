@@ -1,0 +1,92 @@
+starting the application
+
+Actors number: 3
+
+Actor 1 time: 0.000054
+Actor 2 time: 0.000763
+Actor 0 time: 0.001127
+
+global time: 0.001771 s
+
+++++++++++++++++++++++++++++++++++++++++++++
+starting the application
+
+Actors number: 6
+
+Actor 2 time: 0.000249
+Actor 0 time: 0.000441
+Actor 5 time: 0.000175
+Actor 4 time: 0.000308
+Actor 3 time: 0.000330
+Actor 1 time: 0.000754
+
+global time: 0.001354 s
+
+++++++++++++++++++++++++++++++++++++++++++++
+starting the application
+
+Actors number: 10
+
+Actor 4 time: 0.000218
+Actor 1 time: 0.000977
+Actor 3 time: 0.000955
+Actor 8 time: 0.000987
+Actor 6 time: 0.001059
+Actor 0 time: 0.002094
+Actor 9 time: 0.001978
+Actor 5 time: 0.002541
+Actor 2 time: 0.002750
+Actor 7 time: 0.003269
+
+global time: 0.004556 s
+
+++++++++++++++++++++++++++++++++++++++++++++
+starting the application
+
+Actors number: 1
+
+Actor 0 time: 0.000251
+
+global time: 0.000864 s
+
+++++++++++++++++++++++++++++++++++++++++++++
+starting the application
+
+Actors number: 5
+
+Actor 3 time: 0.000107
+Actor 1 time: 0.000601
+Actor 4 time: 0.001229
+Actor 2 time: 0.001810
+Actor 0 time: 0.002216
+
+global time: 0.002913 s
+
+++++++++++++++++++++++++++++++++++++++++++++
+starting the application
+
+Actors number: 9
+
+Actor 2 time: 0.000266
+Actor 5 time: 0.000045
+Actor 0 time: 0.000349
+Actor 8 time: 0.000186
+Actor 7 time: 0.000188
+Actor 1 time: 0.000533
+Actor 4 time: 0.000483
+Actor 3 time: 0.000629
+Actor 6 time: 0.000600
+
+global time: 0.000992 s
+
+++++++++++++++++++++++++++++++++++++++++++++
+starting the application
+
+Actors number: 2
+
+Actor 1 time: 0.000047
+Actor 0 time: 0.000476
+
+global time: 0.000991 s
+
+++++++++++++++++++++++++++++++++++++++++++++

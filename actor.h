@@ -1,13 +1,32 @@
 
+#include<pthread.h>
 
+#ifndef MAX_MESSAGES
+#define MAX_MESSAGES 50
+#endif
 
+#ifndef MAX_MESSAGE_SIZE
+#define MAX_MESSAGE_SIZE 100
+#endif
 
+#ifdef OLD_IMPL
 typedef struct 
 {
     int top;
-    char messages[50][100];
+    char messages[MAX_MESSAGES][MAX_MESSAGE_SIZE];
 } mailbox;
+#endif
 
+#ifndef OLD_IMPL
+typedef struct 
+{   
+    int start;
+    int finish;
+    int flag;
+    pthread_mutex_t finish_mutex;
+    char messages[MAX_MESSAGES][MAX_MESSAGE_SIZE];
+} mailbox;
+#endif
 
 void *actor(void* address);
 
