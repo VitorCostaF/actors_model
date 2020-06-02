@@ -4,8 +4,10 @@
 #include<pthread.h>
 #include<unistd.h>
 #include<time.h>
+#include<errno.h>
 
 #include "actor.h"
+#include "ring_buffer.h"
 
 #define MAX_ACTOR 10
 
@@ -17,16 +19,19 @@
 #define OUT_FILE "output_file.txt"
 #endif
 
+
 int actor_count;
 int actor_active_count = 0;
 
 mailbox email_server[MAX_ACTOR];
 
+int mailboxes_waiting[MAX_ACTOR];
 pthread_mutex_t mailboxes_mutex[MAX_ACTOR];
 pthread_mutex_t barrier_mutex;
 pthread_mutex_t file_mutex;
 pthread_cond_t actor_wait_cond;
 pthread_cond_t mail_wait_cond[MAX_ACTOR];
+
 
 FILE * output_file;
 
@@ -101,12 +106,7 @@ char* read_message(mailbox *mail, int address) {
 
 #ifndef OLD_IMPL
 void init_mailserver(mailbox * list_mail, int list_size) {
-    for(int i = 0; i < list_size; i++)  {
-        list_mail[i].start = 0;
-        list_mail[i].finish = 0;
-        list_mail[i].flag = 0;
-        pthread_mutex_init(&list_mail[i].finish_mutex, NULL);
-    }        
+    init_ring_buffer_vector(list_mail, list_size);
 }
 
 void *actor(void* address) {
@@ -127,8 +127,10 @@ void *actor(void* address) {
         timeout.tv_sec = 2;
         
         sprintf(my_message, "Hello actor %ld I am actor %ld.", send_address, my_address);
-        if(!send_message_atomic(&email_server[send_address], my_message, send_address))
+
+        if(send_message_atomic(&email_server[send_address], my_message, send_address))
             printf("Actor %ld mailbox is full=\n", send_address);
+
         char* recv_msg = read_message_time(my_mailbox, my_address, timeout);
         
         if(recv_msg)
@@ -143,81 +145,73 @@ void *actor(void* address) {
     return NULL;
 }
 
-void send_message(mailbox *mail, char * message, int send_address) {
+// void send_message(mailbox *mail, char * message, int send_address) {
     
-    pthread_mutex_lock(&mail->finish_mutex);
-    if(mail->flag) { 
-        printf("Actor %d mailbox is full\n", send_address);
-    }
-    else {
-        strcpy(mail->messages[mail->finish], message);
-        mail->finish = (mail->finish + 1)%MAX_MESSAGES;
-        if(mail->finish == mail->start)
-            mail->flag=1;
-    }
-    pthread_mutex_unlock(&mail->finish_mutex);
-}
+//     pthread_mutex_lock(&mail->finish_mutex);
+//     if(mail->flag) { 
+//         printf("Actor %d mailbox is full\n", send_address);
+//     }
+//     else {
+//         strcpy(mail->messages[mail->finish], message);
+//         mail->finish = (mail->finish + 1)%MAX_MESSAGES;
+//         if(mail->finish == mail->start)
+//             mail->flag=1;
+//     }
+//     pthread_mutex_unlock(&mail->finish_mutex);
+// }
 
 int send_message_atomic(mailbox *mail, char * message, int send_address) {
-    int new_finish, finish, atualizou = 0, start;
 
-    while(!atualizou) {
+    int retorno;
 
-        finish = __atomic_load_n(&(mail->finish), __ATOMIC_ACQUIRE);
-        start = __atomic_load_n(&(mail->start), __ATOMIC_ACQUIRE);
+    retorno = ring_buffer_add(mail, message);
 
-        if((start == 0 && finish == MAX_MESSAGES -1) || (finish == start - 1))
-            return 0;
+    if(retorno == SUCCESS) {
 
-        new_finish = (finish + 1)%MAX_MESSAGES;
-        atualizou = __atomic_compare_exchange_n(&(mail->finish), &finish, new_finish, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
-
-        if(atualizou) {
-            strcpy(mail->messages[finish], message);
-            pthread_cond_broadcast(&mail_wait_cond[send_address]);
+        if(mailboxes_waiting[send_address]) {
+            mailboxes_waiting[send_address]--;
+            pthread_cond_signal(&mail_wait_cond[send_address]);
         }
-
     }
-    return 1;
+
+    return retorno;
 }
 
-char* read_message(mailbox *mail, int address) {
+// char* read_message(mailbox *mail, int address) {
 
-    if((mail->start >= mail->finish) && !mail->flag)
-        return NULL;
-    char* message = mail->messages[mail->start];
-    mail->start = (mail->start + 1)%MAX_MESSAGES;
-    __atomic_store_n(&(mail->flag), 0, __ATOMIC_RELEASE);
-    return message;
-}
+//     if((mail->start >= mail->finish) && !mail->flag)
+//         return NULL;
+//     char* message = mail->messages[mail->start];
+//     mail->start = (mail->start + 1)%MAX_MESSAGES;
+//     __atomic_store_n(&(mail->flag), 0, __ATOMIC_RELEASE);
+//     return message;
+// }
 
-char* read_message_time(mailbox *mail, int address, struct timespec time) {
-    int retorno, atualizou = 0;
-    int start, finish, new_start;
-    char* message;
+char* read_message_time(mailbox *mail, int address, struct timespec timeout) {
+    int retorno;
+    char* message = NULL;
+    char** message_pt = &message;
     pthread_mutex_t cond_mutex;
     pthread_mutex_init(&cond_mutex, NULL);
 
-    finish = __atomic_load_n(&(mail->finish), __ATOMIC_ACQUIRE);
-    start = __atomic_load_n(&(mail->start), __ATOMIC_ACQUIRE);
+    if(ring_buffer_pop(mail, message_pt) == BUFFER_EMPTY) {
 
-    if((start >= finish)) {
-        retorno = pthread_cond_timedwait(&mail_wait_cond[address], &cond_mutex, &time);
-        pthread_mutex_destroy(&cond_mutex);
-        if(retorno) 
-            return NULL;
-    }
+        pthread_mutex_lock(&mailboxes_mutex[address]);
+        mailboxes_waiting[address]++;
 
-    while(!atualizou) {
-        start = __atomic_load_n(&(mail->start), __ATOMIC_ACQUIRE);
-        new_start = (start + 1)%MAX_MESSAGES;
+        do {
+            retorno = pthread_cond_timedwait(&mail_wait_cond[address], &mailboxes_mutex[address], &timeout);
+            if(retorno == ETIMEDOUT) 
+                break;
+        } while (retorno);
 
-        atualizou = __atomic_compare_exchange_n(&(mail->start), &start, new_start, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+        if(!retorno)
+            ring_buffer_pop(mail, message_pt);
 
-        if(atualizou) 
-            message = mail->messages[mail->start];
-    }
-    
+        pthread_mutex_unlock(&mailboxes_mutex[address]);
+        mailboxes_waiting[address]--;
+
+    }      
     return message;
 }
 #endif
@@ -242,6 +236,8 @@ int main(int argc, char* argv[]) {
     for(int i = 0; i < actor_count; i++) 
         pthread_mutex_init(&mailboxes_mutex[i], NULL);
     
+    memset(mailboxes_waiting, 0, MAX_ACTOR*sizeof(int));
+
     pthread_mutex_init(&barrier_mutex, NULL);
     pthread_mutex_init(&file_mutex, NULL);
     pthread_cond_init(&actor_wait_cond, NULL);
