@@ -1,1 +1,1 @@
-gcc -g -Wall -o actor actor.c -lpthread
+gcc -g -Wall -o actor actor.c ring_buffer.c -lpthread
